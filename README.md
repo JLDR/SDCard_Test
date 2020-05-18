@@ -1,3 +1,5 @@
-# SDFat_test_functions 
-Description du projet pour tester la SDCard 
-On teste les methodes par des commandes transmises par le terminal 
+# SDCard_Test
+
+Evolutionary functions for the usage of an SDCard
+
+![sdcard.png](\images\sdcard.png)

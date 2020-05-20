@@ -662,8 +662,8 @@ uint32_t SearchCloseValue(uint32_t MyBaudRate) {
   return MyBaudRate;
 }
 /****************************************************************************************************************/
-/* Function to select interrupt for all UARTs for transmission and reception ecept UART0 whic is reserved by    */
-/* the boot program. We do not recommand to use the UDREn flag as transmission interupt.                        */
+/* Function to select interrupt for all UARTs for transmission and reception except UART0 which is reserved by  */
+/* the boot program. I do not recommand to use the UDREn flag as transmission interupt.                         */
 /* TXCIEn : The TXCn flag bit is set when the entire frame in the Transmit Shift Register has been shifted out  */
 /* and there are no new data currently present in the transmit buffer (UDRn).                                   */
 /* UDRIEn : The UDREn Flag indicates if the transmit buffer (UDRn) is ready to receive new data. If UDREn is    */
@@ -674,47 +674,113 @@ uint32_t SearchCloseValue(uint32_t MyBaudRate) {
 /*                  out and there are no new data currently present in the transmit buffer.                     */
 /* UDR_Interrupt -> This flag bit is set when the transmit buffer UDRn is empty and ready to receive new data.  */
 /* If the flag UDR_Interrupt is used, we have to inhibit the authorization TXCIEn in the UCSRnB register and    */
-/* reciprocally, it will necessary to inhibit UDRIEn if the flag TX_Interrupt is used.                          */                                                */
+/* reciprocally, it will necessary to inhibit UDRIEn if the flag TX_Interrupt is used.                          */
+/* ------------------------------------------------------------------------------------------------------------ */
+/* Interrupts Control is : 'intuart_'<xxxx> An interruption for one channel is applied to receive and transmit  */
+/* UART channel : <xxxx> => x___ : UART number (1 to 3)                                                         */
+/* Receive Complete Interrupt Enable : <xxxx> => _x__ :  RX_ISR_enable (1) or RX_ISR_disable (0)                */
+/* Transmit Complete Interrupt Enable :  <xxxx> => __x_ :  TX_ISR_enable (1) or TX_ISR_disable (0)              */
+/* UDRE Interrupt Enable : <xxxx> => ___x :  UDRempty_ISR_enable (1) or UDRempty_ISR_disable (0)                */
 /****************************************************************************************************************/
-void UART_Interrupts_config(uint8_t UART_selected, bool TxRx_Interrupt, bool UDR_Interrupt) {
+void UART_Interrupts_config(String Cde_lue) {
+  UART_Port_t UART_selected;
+  UCSRnB_register_t ChannelInterrupts;
+  Cde_lue = Cde_lue.substring(8);                                     // 'intuart_'<xxxx>
+  Cde_lue.toCharArray(ComAsciiArray, Cde_lue.length() + 1);
+  UART_selected = (uint8_t)ComAsciiArray[0] - 0x30;                   // <xxxx> => x___
+  ScratchComUART_8bits = (uint8_t)ComAsciiArray[1] - 0x30;            // <xxxx> => _x__
+  if (ScratchComUART_8bits == 1) ChannelInterrupts.RXCIEn_bit = true; 
+  else ChannelInterrupts.RXCIEn_bit = false;
+  ScratchComUART_8bits = (uint8_t)ComAsciiArray[2] - 0x30;            // <xxxx> => __x_
+  if (ScratchComUART_8bits == 1) ChannelInterrupts.TXCIEn_bit = true; 
+  else ChannelInterrupts.TXCIEn_bit = false;
+  ScratchComUART_8bits = (uint8_t)ComAsciiArray[3] - 0x30;            // <xxxx> => ___x
+  if (ScratchComUART_8bits == 1) ChannelInterrupts.UDRIEn_bit = true; 
+  else ChannelInterrupts.UDRIEn_bit = false;
+  
   switch (UART_selected) {
     case UART1:
-      if (TxRx_Interrupt == enable_UART) {
-        UCSR1B |= ((1<<RXCIE1)|(1<<TXCIE1));                // registre d'autorisation d'interruptions de l'UART
-        UCSR1B &= ~(1<<UDRIE1);
-        cout_Communication << F("\n[setup] Interruptions RXCIE1 et TXCIE1 activées\n");
-      } else UCSR1B &= ~((1<<TXCIE1)|(1<<RXCIE1));
-      if (UDR_Interrupt == enable_UART) {
-        UCSR1B |= (1<<UDRIE1);
-        UCSR1B &= ~(1<<TXCIE1);
-        cout_Communication << F("\n[setup] Interruptions RXCIE1 et UDRIE1 activées\n");
-      } else UCSR1B &= ~(1<<UDRIE1);
+      if (ChannelInterrupts.RXCIEn_bit == true) UCSR1B |= (1<<RXCIE1);
+      else UCSR1B &= ~(1<<RXCIE1);
+      if (ChannelInterrupts.TXCIEn_bit == true) UCSR1B |= (1<<TXCIE1);
+      else UCSR1B &= ~(1<<TXCIE1);  
+      if (ChannelInterrupts.UDRIEn_bit == true) UCSR1B |= (1<<UDRIE1);
+      else UCSR1B &= ~(1<<UDRIE1);  
       break;
     case UART2:
-      if (TxRx_Interrupt == enable_UART) {
-        UCSR2B |= ((1<<RXCIE2)|(1<<TXCIE2));
-        UCSR2B &= ~(1<<UDRIE2);
-      } else UCSR2B &= ~((1<<TXCIE2)|(1<<RXCIE2));
-      if (UDR_Interrupt == enable_UART) {
-        UCSR2B |= (1<<UDRIE2);
-        UCSR2B &= ~(1<<TXCIE2);
-      } else UCSR2B &= ~(1<<UDRIE2);
+      if (ChannelInterrupts.RXCIEn_bit == true) UCSR2B |= (1<<RXCIE2);
+      else UCSR2B &= ~(1<<RXCIE2);
+      if (ChannelInterrupts.TXCIEn_bit == true) UCSR2B |= (1<<TXCIE2);
+      else UCSR2B &= ~(1<<TXCIE2);  
+      if (ChannelInterrupts.UDRIEn_bit == true) UCSR2B |= (1<<UDRIE2);
+      else UCSR2B &= ~(1<<UDRIE2);  
       break;
     case UART3:
-      if (TxRx_Interrupt == enable_UART) {
-        UCSR3B |= ((1<<RXCIE3)|(1<<TXCIE3));
-        UCSR3B &= ~(1<<UDRIE3);
-      } else UCSR3B &= ~((1<<TXCIE3)|(1<<RXCIE3));
-      if (UDR_Interrupt == enable_UART) {
-        UCSR3B |= (1<<UDRIE3);
-        UCSR3B &= ~(1<<TXCIE3);
-      } else UCSR3B &= ~(1<<UDRIE3);
+      if (ChannelInterrupts.RXCIEn_bit == true) UCSR3B |= (1<<RXCIE3);
+      else UCSR3B &= ~(1<<RXCIE3);
+      if (ChannelInterrupts.TXCIEn_bit == true) UCSR3B |= (1<<TXCIE3);
+      else UCSR3B &= ~(1<<TXCIE3);  
+      if (ChannelInterrupts.UDRIEn_bit == true) UCSR3B |= (1<<UDRIE3);
+      else UCSR3B &= ~(1<<UDRIE3);  
       break;
     default:
       break;
   }
 }
-
+/****************************************************************************************************/
+/* Function to read state of the UART interrupts registers.                                         */    
+/* The control frame is 'readint_'<d>                                                               */
+/****************************************************************************************************/
+void ReadUARTInterrupts(String Cde_lue) {
+  UART_Port_t UART_selected;
+  UCSRnB_register_t ChannelInterrupts;
+  uint8_t k;
+  Cde_lue = Cde_lue.substring(8);
+  Cde_lue.toCharArray(ComAsciiArray, Cde_lue.length() + 1);
+  UART_selected = (uint8_t)ComAsciiArray[0] - 0x30;
+  
+  switch (UART_selected) {
+    case UART1:
+      ScratchComUART_8bits = UCSR1B;
+      FlagReader = (ScratchComUART_8bits & (1<<RXCIEn));
+      if (FlagReader != 0) Serial.print(F("\n[setup] RXCIE1 interrupt activated"));
+      else Serial.print(F("\n[setup] RXCIE1 interrupt disabled"));
+      FlagReader = (ScratchComUART_8bits & (1<<TXCIEn));
+      if (FlagReader != 0) Serial.print(F("\n[setup] TXCIE1 interrupt activated"));
+      else Serial.print(F("\n[setup] TXCIE1 interrupt disabled"));
+      FlagReader = (ScratchComUART_8bits & (1<<UDRIEn));
+      if (FlagReader != 0) Serial.print(F("\n[setup] UDRIE1 interrupt activated"));
+      else Serial.print(F("\n[setup] UDRIE1 interrupt disabled"));
+      break;
+    case UART2:
+      ScratchComUART_8bits = UCSR2B;
+      FlagReader = (ScratchComUART_8bits & (1<<RXCIEn));
+      if (FlagReader != 0) Serial.print(F("\n[setup] RXCIE2 interrupt activated"));
+      else Serial.print(F("\n[setup] RXCIE2 interrupt disabled"));
+      FlagReader = (ScratchComUART_8bits & (1<<TXCIEn));
+      if (FlagReader != 0) Serial.print(F("\n[setup] TXCIE2 interrupt activated"));
+      else Serial.print(F("\n[setup] TXCIE2 interrupt disabled"));
+      FlagReader = (ScratchComUART_8bits & (1<<UDRIEn));
+      if (FlagReader != 0) Serial.print(F("\n[setup] UDRIE2 interrupt activated"));
+      else Serial.print(F("\n[setup] UDRIE2 interrupt disabled"));  
+      break;
+    case UART3:
+      ScratchComUART_8bits = UCSR3B;
+      FlagReader = (ScratchComUART_8bits & (1<<RXCIEn));
+      if (FlagReader != 0) Serial.print(F("\n[setup] RXCIE3 interrupt activated"));
+      else Serial.print(F("\n[setup] RXCIE3 interrupt disabled"));
+      FlagReader = (ScratchComUART_8bits & (1<<TXCIEn));
+      if (FlagReader != 0) Serial.print(F("\n[setup] TXCIE3 interrupt activated"));
+      else Serial.print(F("\n[setup] TXCIE3 interrupt disabled"));
+      FlagReader = (ScratchComUART_8bits & (1<<UDRIEn));
+      if (FlagReader != 0) Serial.print(F("\n[setup] UDRIE3 interrupt activated"));
+      else Serial.print(F("\n[setup] UDRIE3 interrupt disabled"));  
+      break;
+    default:
+      break;
+  }
+}
+  
 
 
 

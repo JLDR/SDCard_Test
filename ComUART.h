@@ -53,6 +53,9 @@
 #define                 LF                    0x0A          // '\n'
 #define                 CR                    0x0D          // '\r'
 #define                 F_cpu                 16000000UL
+#define                 RXCIEn                7
+#define                 TXCIEn                6
+#define                 UDRIEn                5
 
 #define                 MEGA2560Board
 //#define                 UNO328Board
@@ -83,6 +86,12 @@ typedef enum NbrStopBits {
   TwoStopBit
 } StopBit_t;
 
+typedef struct UCSRnB_register {
+  bool RXCIEn_bit;
+  bool TXCIEn_bit;
+  bool UDRIEn_bit;
+} UCSRnB_register_t;
+
 /* prototypage des fonctions de la bibliothèque */
 void UART_StatusWrite(UART_Port_t, bool);
 void Init_UART(UART_Port_t, uint32_t, CharSize_t, Parity_t, StopBit_t);
@@ -92,6 +101,8 @@ uint8_t ConvUint32ToDecASCIIChar(char *, uint32_t);
 void ConfigUART(String);
 void UARTReading(String);
 uint32_t SearchCloseValue(uint32_t);
+void UART_Interrupts_config(String);
+void ReadUARTInterrupts(String);
 
 
 

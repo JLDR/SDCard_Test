@@ -2,6 +2,7 @@
   SD card file dump
   This example shows how to read a file from the SD card using the
   SD library and send it over the serial port.
+  contact : jean-louis.druilhe@univ-tlse3.fr
   The circuit:
  * SD card attached to SPI bus as follows:
  ** MOSI - pin 11         pin 51
@@ -226,8 +227,8 @@ void loop() {
       if (Commande.startsWith("uarthelp")) uarthelp();
       if (Commande.startsWith("uart")) ConfigUART(Commande);                            // 'uart'<d_d_dAd>
       if (Commande.startsWith("readuart_")) UARTReading(Commande);                      // 'readuart_'<d>
-      
-
+      if (Commande.startsWith("intuart_")) UART_Interrupts_config(Commande);            // 'intuart_'<xxxx>
+      if (Commande.startsWith("readint_")) ReadUARTInterrupts(Commande);                // 'readint_'<d>
 
       
     }

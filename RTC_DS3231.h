@@ -6,7 +6,7 @@
 
 /* contrairement au PSoC, c'est bien à cet endroit qu'il faut déclarer les appels des autres bibliothèques */
 #include      <Wire.h>            // bibliothèque pour la gestion des ressources I2C
-#include      <DS3231.h>          // Contient la classe Serial
+#include      <DS3231.h>          // Contient la classe Serial (http://www.rinkydinkelectronics.com/library.php)
 #include      <Eeprom24C32_64.h>
 
 

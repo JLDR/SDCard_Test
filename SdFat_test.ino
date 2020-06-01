@@ -146,8 +146,6 @@ void setup() {
     } while(1);                           // don't do anything more
   } else {
     VersLeTerminal << F("card initialized.") << endl << endl;
-    //VersLeTerminal << F("Lecture du contenu de la micro SDCard :") << endl;
-    //help();
   }
   
 //  Fichier_courant = SD.open("datalog.txt", FILE_WRITE);     // re-open the file for writing
@@ -203,7 +201,7 @@ void loop() {
       cmd = computerdata;                             // initialise le pointeur avec la première adresse du tableau cmd = &computerdata[0];
       Commande = (String)cmd;                         // https://www.arduino.cc/en/Reference/StringConstructor
       if (computerdata[0] != LF && Flags_reading == 0) VersLeTerminal << F("Commande lue : ") << computerdata << endl;      // il faut passer un tableau de caractères
-      if (Commande.startsWith("help")) help();
+      if (Commande.startsWith("helpgen")) help();
       if (Commande.startsWith("checkFile")) Check_File(Commande, MySD, VersLeTerminal, fichier);    // Commande du type 'checkFile_'<NomDuFichier.option>
       if (Commande.startsWith("mkfile")) CreationFichier(Commande, MySD, fichier);
       if (Commande.startsWith("cat_")) LectureFichier(Commande, MySD, fichier);
@@ -221,15 +219,15 @@ void loop() {
       if (Commande.startsWith("cfgdate_")) Change_date(Commande, RTC);                  // 'cfgdate_'<aaaammjj>
       // met à jour les variables heures_lues, minutes_lues, secondes_lues, jour_lu, mois_lu, annee_lue
       if (Commande.startsWith("lecture")) MyRepresentation = lecture(RTC, MyRepresentation);
-      if (Commande.startsWith("rtchelp")) helprtc();                                    // spécifique à l'horloge RTC
+      if (Commande.startsWith("helprtc")) helprtc();                                    // spécifique à l'horloge RTC
       if (Commande.startsWith("format_")) formatage(Commande);                          // 'format_'<xx>
       if (Commande.startsWith("format?")) lect_format(MyRepresentation);                // 'format?'
-      if (Commande.startsWith("uarthelp")) uarthelp();
+      if (Commande.startsWith("helpuart")) uarthelp();
       if (Commande.startsWith("uart")) ConfigUART(Commande);                            // 'uart'<d_d_dAd>
       if (Commande.startsWith("readuart_")) UARTReading(Commande);                      // 'readuart_'<d>
       if (Commande.startsWith("intuart_")) UART_Interrupts_config(Commande);            // 'intuart_'<xxxx>
       if (Commande.startsWith("readint_")) ReadUARTInterrupts(Commande);                // 'readint_'<d>
-
+      if (Commande.startsWith("rxtxtied_")) UART_TxRx_tieded(Commande);                 // 'rxtxtied_'<d>
       
     }
     /* ici on récupère tout ce qui est présent dans le buffer à condition que le caractère retour chariot soit entré */

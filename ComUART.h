@@ -19,17 +19,6 @@
 
 
 /* constantes */
-#define                 DefaultConfUART       "uart1_4_8N1"     // Commande : 'uart'<d_d_dAd> (uart1_4_8N1)  19200 bauds
-#define                 NoneParityText        "None"
-#define                 EvenParityText        "Even"
-#define                 OddParityText         "Odd"
-//#define                 EvenParity            'E'
-//#define                 OddParity             'O'
-//#define                 NoneParity            'N'
-#define                 CharSize6bit          6
-#define                 CharSize7bit          7
-#define                 CharSize8bit          8
-#define                 CharSize9bit          9
 #define                 enable_UART           true
 #define                 disable_UART          false
 #define                 Nbr_Car_LCD           20
@@ -103,8 +92,9 @@ void UARTReading(String);
 uint32_t SearchCloseValue(uint32_t);
 void UART_Interrupts_config(String);
 void ReadUARTInterrupts(String);
-
-
+void UART_TxRx_tieded(String);
+void Send_OnlyOneChar(uint8_t, UART_Port_t);
+uint8_t Read_OnlyOneChar(UART_Port_t);
 
 
 #endif /* COMMUNICATIONS_H_ */

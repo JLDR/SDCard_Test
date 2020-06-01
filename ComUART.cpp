@@ -24,9 +24,11 @@
  */
 
 #include                  "ComUART.h"
-//#include                  "Fonctions.h"
+#include                  "Fonctions.h"
 
-
+/*************************** Variables externes utilisées par les procédures d'interruption ***************************/                       
+extern volatile uint8_t       compt1, compt2, compt3, compt4, compt5, cmpt_100us, cmpt_5ms; // variables utilisées par les ISR des compteurs
+extern volatile uint16_t      cmpt1, cmpt2, cmpt3, cmpt4, cmpt5;
 
 /*************************** Variables locales utilisées par les procédures d'interruption ***************************/         
 volatile uint16_t       drapeau_UART;                   // Utilisé par les procédures d'interruption liées à l'UART
@@ -48,7 +50,9 @@ uint32_t                ResDivision_UART;              // 0 to 4,294,967,295
 uint8_t                 ResModulo_UART;
 char                    ComAsciiArray[20];
 uint8_t                 FlagReader;
-
+uint8_t                 BuffIn[100];
+uint8_t                 BuffOut[100];
+uint16_t                TestFlags16bits;         
 
 
 /* ##################### Vecteurs d'interruptions ##################### */
@@ -175,7 +179,7 @@ void Init_UART(UART_Port_t UART_selected, uint32_t Baudrate, CharSize_t LengthCh
   uint8_t k;
   UBRR_value = (uint16_t)(F_cpu / (16UL * Baudrate)) - 1;
   Serial.print(F("\n[info] UART"));
-  Serial.println(UART_selected, DEC);
+  Serial.print(UART_selected, DEC);
   ScratchComUART_8bits = ConvUint32ToDecASCIIChar(&TabAsciiUnsignedInteger[0], Baudrate);
   Serial.print(F("\n[info] Baudrate : "));
   for (k = 0; k < ScratchComUART_8bits; k++) Serial.print(TabAsciiUnsignedInteger[k]);
@@ -341,16 +345,16 @@ void Init_UART(UART_Port_t UART_selected, uint32_t Baudrate, CharSize_t LengthCh
   }
 }
 /****************************************************************************************************/
-/* fonction d'aide pour lire le contenu des commandes propres à l'UART.                             */
+/* README file to identify the control commands to configure all the UARTs.                         */
 /****************************************************************************************************/
 void uarthelp() {
-  separateurComUART(110, '=');
+  separateurComUART(110, '*');
   Serial.println(F("REMARQUES IMPORTANTES :"));
   Serial.println(F("- Les nombres flottants ne doivent pas comporter plus de 7 décimales."));
   Serial.println(F("- Les caractères < et > ne doivent pas être écrits, ils précisent un paramètre hexadécimal (x), décimal (d) ou alphanumérique (a)."));
   Serial.println(F("- La représentation ASCII des paramètres alphanumériques peut être en majuscule : hexadécimal (X) et alphanumérique (A)."));
   Serial.println(F("- La forme littérale de la commande est précisée entre apostrophes (') qui ne doivent pas être utilisées."));
-  separateurComUART(110, '_');
+  separateurComUART(110, '*');
   Serial.println(F("UARTs configurables : UART1, UART2 & UART3"));
   Serial.println(F("Commande : 'uart'<d_d_dAd> (uart1_6_8N1)"));
   Serial.println(F("Commande ASCII comprenant : numéro d'UART, taux de communication, nbr de bits par caractère, parité et nbr de bits de stop\n"));
@@ -359,17 +363,26 @@ void uarthelp() {
   Serial.println(F("\t- Nombre de bits par caractère :\t6 -> 6 bits,\t7 -> 7 bits,\t8 -> 8 bits,\t9 -> 9 bits\n"));
   Serial.println(F("\t- Parité :\tE (Even) -> paire,\tO (Odd) -> impaire,\tN (None) -> aucune\n"));
   Serial.println(F("\t- Stop bits :\t1 -> One stop bit,\t2 -> Two stop bits"));
-  separateurComUART(110, '=');
+  separateurComUART(110, '-');
+  Serial.println(F("To check features of each UART : 'readuart_'<d>"));
+  Serial.println(F("\t- d is the number of the selected UART :\t1 -> UART1,\t2 -> UART2,\t3 -> UART3"));
+  separateurComUART(110, '_');
   Serial.println(F("CONFIGURATION des interruptions propres aux UARTs :"));
-  Serial.println(F("Commande : 'intuart_'<xxxx>"));             // version anglaise : Interrupts Control
+  Serial.println(F("Control command : 'intuart_'<xxxx>"));             // version anglaise : Interrupts Control
   Serial.println(F("Une interruption activée entraine l'activation de l'émetteur et du récepteur"));
   Serial.println(F("\t<xxxx> => x___ : UART number (1 to 3)\n"));
-  Serial.println(F("\t<xxxx> => _x__ : RX Complete Interrupt Enable : RX_ISR_enable (0) or RX_ISR_disable (1)\n"));
-  Serial.println(F("\t<xxxx> => __x_ : TX Complete Interrupt Enable : TX_ISR_enable (0) or TX_ISR_disable (1)\n"));
-  Serial.println(F("\t<xxxx> => ___x : USART Data Register Empty Interrupt Enable : UDRempty_ISR_enable (0) or UDRempty_ISR_disable (1)"));
-  separateurComUART(110, '=');
-  Serial.println(F("Scrutation des périphériques I2C"));
-  Serial.println(F("- Pour lire les adresses I2C courantes des modules connectés : 'scan' ou 'i2c'"));
+  Serial.println(F("\t<xxxx> => _x__ : RX Complete Interrupt Enable : RX_ISR_enable (1) or RX_ISR_disable (0)\n"));
+  Serial.println(F("\t<xxxx> => __x_ : TX Complete Interrupt Enable : TX_ISR_enable (1) or TX_ISR_disable (0)\n"));
+  Serial.println(F("\t<xxxx> => ___x : USART Data Register Empty Interrupt Enable : UDRempty_ISR_enable (1) or UDRempty_ISR_disable (0)"));
+  separateurComUART(110, '-');
+  Serial.println(F("To check interruptions used on each UART : 'readint_'<d>"));
+  Serial.println(F("\t- d is the number of the selected UART :\t1 -> UART1,\t2 -> UART2,\t3 -> UART3"));
+  separateurComUART(110, '_');
+  Serial.println(F("Exchange of frame on the same UART using TxC and RxC pinouts connected together"));
+  Serial.println(F("Control command : 'rxtxtied_'<d>"));
+  separateurComUART(110, '_');
+  Serial.println(F("Polling the I2C bus"));
+  Serial.println(F("- To read I2C addresses for all devices connected : 'scan' ou 'i2c'"));
   separateurComUART(110, '=');
 }
 /****************************************************************************************************/
@@ -634,13 +647,13 @@ void UARTReading(String Cde_lue) {
   Serial.print(F("Parity : "));
   switch (ParityMode) {
     case NoneParity:
-      Serial.println(NoneParityText);         // "None"
+      Serial.println("None");
       break;
     case EvenParity:
-      Serial.println(EvenParityText);         // "Even"
+      Serial.println("Even");
       break;
     case OddParity:
-      Serial.println(OddParityText);         // "Odd"
+      Serial.println("Odd");
       break;                     
   }
   Serial.print(F("Stop Bit(s) : ")); Serial.println(StopBits, DEC);
@@ -780,10 +793,135 @@ void ReadUARTInterrupts(String Cde_lue) {
       break;
   }
 }
+/************************************************************************************************************/
+/* Function to check the UART port with connections Txn and Rxn tied together.                              */
+/* The aim is to receive an ASCII frame from the terminal with asking and displaying content to send and to */
+/* receive. The control command is 'rxtxtied_'<d>                                                           */
+/************************************************************************************************************/
+void UART_TxRx_tieded(String Cde_lue) {
+  UART_Port_t UartNumber;
+  uint8_t k;
+  uint8_t nbr_ReceivedBytes, *ptr_byte;
+  Cde_lue = Cde_lue.substring(9);
+  Cde_lue.toCharArray(ComAsciiArray, Cde_lue.length() + 1);
+  UartNumber = (uint8_t)ComAsciiArray[0] - 0x30;
+  Serial.print(F("[uart] You must tied Rx")); Serial.print(UartNumber, DEC); 
+  Serial.print(F(" and Tx")); Serial.println(UartNumber, DEC);
+  Serial.print(F("[uart] confirm the connection between Tx")); Serial.print(UartNumber, DEC);
+  Serial.print(F(" and Rx")); Serial.print(UartNumber, DEC); Serial.print(F(" (Y/N) ?: "));
+  do  {                                 // polling on UART0
+  } while(Serial.available() == 0);     // We wait the answer of the operator Yes or No
+  nbr_ReceivedBytes = Serial.readBytesUntil(CR, BuffOut, 100);
+  BuffOut[nbr_ReceivedBytes] = Null;
+  ptr_byte = BuffOut;
+  Serial.print(F("\n[uart] Answer from terminal: ")); Serial.println((char)*ptr_byte);
   
-
-
-
+  if (*ptr_byte == 'Y' || *ptr_byte == 'y') {
+    //ptr_const_char = &TestUART[0];                // "Test_loopback";
+    //strcpy_P(Frames, ptr_const_char);             // Suitable for choosing control command
+    Serial.print(F("[uart] You can write a frame..."));
+    do  {                                           // polling on UART0
+    } while(Serial.available() == 0); // We wait the ASCII text from operator to fill the Buffer Output to transmit message
+    nbr_ReceivedBytes = Serial.readBytesUntil(CR, BuffOut, 100);        // Line feed included and Carriage Return excluded
+    BuffOut[nbr_ReceivedBytes] = '\0';      // after LF or 0x0A ou 10
+    Serial.print(F("\n[uart] Number of bytes to be transmitted: ")); Serial.print(nbr_ReceivedBytes - 1, DEC);
+    Serial.print(F("\n[uart] Payload sended:\t\t"));
+    k = 0;
+    do {
+      Serial.print((char)BuffOut[k++]);
+    } while(BuffOut[k] != '\0');
+    for (k = 0; k < nbr_ReceivedBytes; k++) {
+      Send_OnlyOneChar(BuffOut[k], UartNumber);
+      BuffIn[k] = Read_OnlyOneChar(UartNumber); 
+    }
+    BuffIn[nbr_ReceivedBytes] = '\n';
+    k = 0;
+    Serial.print(F("\n[uart] Payload received:\t"));
+    do {
+      Serial.print((char)BuffIn[k++]);
+    } while(BuffIn[k] != '\0');                
+  } else {
+    Serial.print(F("\n[uart] No communication awaited on UART"));
+    Serial.print(UartNumber, DEC);
+  }
+}
+/********************************************************************************************/
+/* To transmit only one character.                                                          */
+/* The priority of the reception interrupt involves that the flag is not cleared as long as */
+/* the buffer is not read. So when a character is transmitted using the instruction         */
+/* "UDR = ..." the first interruption which is rising is the reception interrupt and as     */
+/* long as we don't read the buffer, the other interruption with lower priority are not     */
+/* activated.                                                                               */
+/********************************************************************************************/
+void Send_OnlyOneChar(uint8_t bytetransmited, UART_Port_t UartNumber) {
+  switch (UartNumber) {
+    case 0:
+      break;
+    case 1:
+      ScratchComUART_8bits = UDR1;    // normally force UDRE1 to change to one.
+      //UCSR1A |= (1<<UDRE1);         // The transmit buffer can only be written when the UDREn Flag in the UCSRnA Register is set
+      UCSR1B &= ~(1<<RXCIE1);         // disabling the reception interrupt
+      UDR1 = bytetransmited;
+      do {
+        TestFlags16bits = (drapeau_UART & (1<<flag_ISR_TxD1));  // interruption when content of transmit register has been completly shifted out
+      } while (TestFlags16bits == 0);
+      drapeau_UART &= ~(1<<flag_ISR_TxD1);
+      UCSR1B |= (1<<RXCIE1);          // reactivate the reception interrupt
+      break;
+    case 2:
+      ScratchComUART_8bits = UDR2;
+      UCSR2B &= ~(1<<RXCIE2);
+      UDR2 = bytetransmited;
+      do {
+        TestFlags16bits = (drapeau_UART & (1<<flag_ISR_TxD2));
+      } while (TestFlags16bits == 0);
+      drapeau_UART &= ~(1<<flag_ISR_TxD2);
+      UCSR2B |= (1<<RXCIE2);
+      break;
+    case 3:
+      ScratchComUART_8bits = UDR3;
+      UCSR3B &= ~(1<<RXCIE3);
+      UDR3 = bytetransmited;
+      do {
+        TestFlags16bits = (drapeau_UART & (1<<flag_ISR_TxD3));
+      } while (TestFlags16bits == 0);
+      drapeau_UART &= ~(1<<flag_ISR_TxD3);
+      UCSR3B |= (1<<RXCIE3);
+      break;
+  }
+}
+/******************************************************************************************************************/
+/* Non-blocking function to read only one char. La fonction est appelée dès qu'on a transmis un caractère. */
+/* When we used this function, the array named Frames[] is used.                                                  */
+/******************************************************************************************************************/
+uint8_t Read_OnlyOneChar(UART_Port_t UartNumber) {
+  cmpt1 = 0;    // (uint16_t) timer set to 5 ms : to avoid the shutdown of the oxymeter
+  switch (UartNumber) {
+    case UART0:
+      return;
+    case UART1:
+      do {
+        TestFlags16bits = (drapeau_UART & (1<<flag_ISR_RxD1));
+        if (cmpt1 >= 10) return;      // After 50 ms of awaiting delay, we get out from this function 
+      } while(TestFlags16bits == 0);
+      //drapeau_UART &= ~(1<<flag_ISR_RxD1);
+      return UDR1;                    // the fact reading the buffer clear automatically the flag RXCn
+    case UART2:
+      do {
+        TestFlags16bits = (drapeau_UART & (1<<flag_ISR_RxD2));
+        if (cmpt1 >= 10) return; 
+      } while(TestFlags16bits == 0);
+      //drapeau_UART &= ~(1<<flag_ISR_RxD2);
+      return UDR2;
+    case UART3:
+      do {
+        TestFlags16bits = (drapeau_UART & (1<<flag_ISR_RxD3));
+        if (cmpt1 >= 10) return; 
+      } while(TestFlags16bits == 0);
+      //drapeau_UART &= ~(1<<flag_ISR_RxD3);
+      return UDR3;
+  }
+}
 
 
 /* ######################################################################################## */

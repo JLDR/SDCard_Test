@@ -17,6 +17,7 @@
 // Test with reduced SPI speed for breadboards.  SD_SCK_MHZ(4) will select 
 // the highest speed supported by the board that is not over 4 MHz.
 // Change SPI_SPEED to SD_SCK_MHZ(50) for best performance.
+// Thanks a lot to Bill Greiman without whom many projets would not be a success
 // Version used to test this library is 1.1.2 from https://www.arduinolibraries.info/libraries/sd-fat
 /**************************************************************************************************************
 This example shows how to read a file from the SD card using the SD library and send it over the serial port.
@@ -186,7 +187,7 @@ void setup() {
   UART_StatusWrite(UART1, enable_UART);                   // UART1 est connu de tout le module dès que ComUART.h est appelé
   UART_StatusWrite(UART2, disable_UART);                  // UART2 est un entier de type int et vaut 2
   UART_StatusWrite(UART3, disable_UART);                  // UART3 = 3
-  Init_UART(UART1, 19200UL, CharSize8bits, NoneParity, OneStopBit);
+  Init_UART(UART1, 19200UL, CharSize8bits, NoneParity, OneStopBit);         // PyroScience oxymeter communication parameters
   
 }
 
@@ -228,6 +229,9 @@ void loop() {
       if (Commande.startsWith("intuart_")) UART_Interrupts_config(Commande);            // 'intuart_'<xxxx>
       if (Commande.startsWith("readint_")) ReadUARTInterrupts(Commande);                // 'readint_'<d>
       if (Commande.startsWith("rxtxtied_")) UART_TxRx_tieded(Commande);                 // 'rxtxtied_'<d>
+      if (Commande.startsWith("ver_")) ControlCdeVer(Commande);                         // 'ver_'<d>
+
+      
       
     }
     /* ici on récupère tout ce qui est présent dans le buffer à condition que le caractère retour chariot soit entré */

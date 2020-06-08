@@ -66,6 +66,7 @@ volatile uint16_t   cmpt1, cmpt2, cmpt3, cmpt4, cmpt5;
 volatile uint8_t    compt1, compt2, compt3, compt4, compt5, cmpt_100us, cmpt_5ms;
 uint8_t             test_drapeaux;
 char                ConvAsciiToUint16_t[5];      // tableau de '0' à "65535"
+uint8_t             ScratchFonctions_8bits;
 
 // Instanciation d'objets
 LiquidCrystal_I2C lcd_New(0x27, 20, 4);                 /* déclaration de l'afficheur appelé lcd */
@@ -1356,6 +1357,24 @@ void InitArray2dimensions(char *ptr_arrayinit, uint8_t Nbr_Col, uint8_t Nbr_Row)
     for (k = 0; k < Nbr_Col; k++) *(ptr_arrayinit++) = '\0';
   }
 }
+/****************************************************************************************************/
+/* This function returns the number of character in an array.                                       */
+/****************************************************************************************************/
+uint8_t NbrCharInArray(char *ptrChar) {
+  uint8_t k = 0;
+  do {
+    ScratchFonctions_8bits = *(ptrChar++);
+    k++;
+  } while(*ptrChar != '\0');
+  return k;
+}
+
+
+
+
+
+
+
 
 
 /* ######################################################################################################## */

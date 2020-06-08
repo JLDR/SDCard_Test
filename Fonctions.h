@@ -89,5 +89,7 @@ extern void FolderFileOptionPath(String, uint8_t);
 extern void Affiche_ligne_String(String);
 extern void Affiche_ligne_Array(char *);
 extern void InitArray2dimensions(char *, uint8_t, uint8_t);
+extern uint8_t NbrCharInArray(char *);
+
 
 #endif /* FONCTIONS_H_ */

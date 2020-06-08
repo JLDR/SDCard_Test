@@ -75,7 +75,7 @@ typedef enum NbrStopBits {
   TwoStopBit
 } StopBit_t;
 
-typedef struct UCSRnB_register {
+typedef struct UCSRnB_register {          // type for interrupt authorizations
   bool RXCIEn_bit;
   bool TXCIEn_bit;
   bool UDRIEn_bit;
@@ -95,6 +95,10 @@ void ReadUARTInterrupts(String);
 void UART_TxRx_tieded(String);
 void Send_OnlyOneChar(uint8_t, UART_Port_t);
 uint8_t Read_OnlyOneChar(UART_Port_t);
+void ControlCdeVer(String);
+void Send_Frame(UART_Port_t, uint8_t *);
+uint8_t Polling_RS232(UART_Port_t, uint16_t);
+
 
 
 #endif /* COMMUNICATIONS_H_ */

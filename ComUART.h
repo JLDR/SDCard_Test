@@ -96,8 +96,9 @@ void UART_TxRx_tieded(String);
 void Send_OnlyOneChar(uint8_t, UART_Port_t);
 uint8_t Read_OnlyOneChar(UART_Port_t);
 void ControlCdeVer(String);
-void Send_Frame(UART_Port_t, uint8_t *);
+void Send_Frame(UART_Port_t);
 uint8_t Polling_RS232(UART_Port_t, uint16_t);
+void PollingUART_CRend(UART_Port_t);
 
 
 

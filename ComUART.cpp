@@ -32,6 +32,7 @@ extern volatile uint16_t      cmpt1, cmpt2, cmpt3, cmpt4, cmpt5;
 
 /*************************** Local variables used by interrupts subroutines ***************************/         
 volatile uint16_t       drapeau_UART;                   // Utilisé par les procédures d'interruption liées à l'UART
+volatile uint8_t        ReceivedChar;
 
 // Local variables specific to this module
 uint8_t                 Indice_carac;
@@ -48,12 +49,12 @@ char                    TabAsciiUnsignedInteger[20];  // 2^64 = 18 446 744 073 7
 uint8_t                 ScratchComUART_8bits;
 uint16_t                ScratchComUART_16bits;
 uint32_t                ScratchComUART_32bits;
-uint32_t                ResDivision_UART;              // 0 to 4,294,967,295
+uint32_t                ResDivision_UART;             // 0 to 4,294,967,295
 uint8_t                 ResModulo_UART;
 char                    ComAsciiArray[20];
 uint8_t                 FlagReader;
-uint8_t                 BuffIn[100];
-uint8_t                 BuffOut[100];
+uint8_t                 BuffIn[100];                  // global array as buffer for received frames
+uint8_t                 BuffOut[100];                 // global array as buffer for transmission frames
 uint16_t                TestFlags16bits;
 const char              *ptrConstChar;
 
@@ -76,6 +77,7 @@ const char              CdeVersion[] PROGMEM = "VER";                       // c
 /* à zéro quand */
 /********************************************************************************************/
 ISR(USART1_RX_vect) {
+  ReceivedChar = UDR1;
   drapeau_UART |= (1<<flag_ISR_RxD1);
 }
 /********************************************************************************************/
@@ -921,8 +923,7 @@ void Send_OnlyOneChar(uint8_t bytetransmited, UART_Port_t UartNumber) {
   }
 }
 /******************************************************************************************************************/
-/* Non-blocking function to read only one char. La fonction est appelée dès qu'on a transmis un caractère. */
-/* When we used this function, the array named Frames[] is used.                                                  */
+/* Non-blocking function to read only one char. When we used this function, no array is needed.                   */
 /******************************************************************************************************************/
 uint8_t Read_OnlyOneChar(UART_Port_t UartNumber) {
   cmpt1 = 0;    // (uint16_t) timer set to 5 ms : to avoid the shutdown of the oxymeter
@@ -962,70 +963,80 @@ uint8_t Read_OnlyOneChar(UART_Port_t UartNumber) {
 void ControlCdeVer(String Cde_lue) {
   uint8_t ASCIIChannel;
   uint8_t k;
-   
+  uint8_t *ptr;
+  memset(BuffIn, Null, sizeof(BuffIn));       // global array
+  memset(BuffOut, Null, sizeof(BuffOut));     // global array
+  UCSR1B |= (1<<TXCIE1);      // transmit interrupt enable (At this point the receive interruption is not activated)
+  
   Cde_lue = Cde_lue.substring(4);
   Cde_lue.toCharArray(ComAsciiArray, Cde_lue.length() + 1);
   ASCIIChannel = (uint8_t)ComAsciiArray[0];
   ptrConstChar = &CdeVersion[0];            // "VER"
   strcpy_P(BuffOut, ptrConstChar);
   k = NbrCharInArray(&BuffOut[0]);          // define the location just after the control command
-  //Serial.print(F("valeur de k: ")); Serial.print(k, DEC);
   BuffOut[k++] = 0x20;
   BuffOut[k++] = ASCIIChannel;
   BuffOut[k++] = CR;
-  BuffOut[k++] = '\0';
-  UCSR1B |= (1<<TXCIE1);                    // transmit interrupt enable
-  Send_Frame(UART1, &BuffOut[0]);
-  UCSR1B &= ~(1<<TXCIE1);
-  memset(BuffIn, Null, sizeof(BuffIn));
+  BuffOut[k++] = '\0';                      // here we get: VER 1<CR>'\0'
+  ptr = &BuffOut[0];
+  Serial.print(F("\n[uart] control command sended: "));   // no any interaction with reception so have to be made before transmission
+  do {
+    Serial.print((char)*(ptr++));
+  } while(*ptr != '\0');
+  Serial.print((char)LF);                   // Normally we get a new line
+  Send_Frame(UART1);
   UCSR1B |= (1<<RXCIE1);
-  Polling_RS232(UART1, 200);                 // life duration of 50 ms with no recieved chars
+//  TestFlags16bits = (drapeau_UART & (1 << flag_ISR_RxD1));
+//  if (TestFlags16bits != 0) drapeau_UART &= ~(1<<flag_ISR_RxD1);
+  PollingUART_CRend(UART1);
+  //Polling_RS232(UART1, 200);                 // life duration of 50 ms with no recieved chars
+    
+  ptr = &BuffIn[0];
+  Serial.print(F("\n[uart] answer received: "));
+  do {
+    Serial.print((char)*(ptr++));
+  } while(*ptr != '\0');
   UCSR1B &= ~(1<<RXCIE1);
+  UCSR1B &= ~(1<<TXCIE1);
 }
 /******************************************************************************************************************/
 /* Function to transmit a control command which have been loaded in BuffOut array.                                */
 /******************************************************************************************************************/
-void Send_Frame(UART_Port_t num_UART, uint8_t *ptr_TxD) {
-  uint8_t datasended;
-  Serial.print(F("\n[uart] control command sended: "));
+void Send_Frame(UART_Port_t num_UART) {
+  uint8_t *ptrTxD;
+  ptrTxD = &BuffOut[0];
+  
   switch (num_UART) {
     case UART0:
       return;
     case UART1:
       do {
-        datasended = *(ptr_TxD++);
-        UDR1 = datasended;
-        Serial.print((char)datasended);
+        UDR1 = *(ptrTxD++);
         do {
           TestFlags16bits = (drapeau_UART & (1<<flag_ISR_TxD1));
-        } while (TestFlags16bits == 0);
+        } while(TestFlags16bits == 0);
         drapeau_UART &= ~(1<<flag_ISR_TxD1);
-      } while(*ptr_TxD != '\0');
+      } while(*ptrTxD != '\0');
       break;
     case UART2:
       do {
-        datasended = *(ptr_TxD++);
-        UDR2 = datasended;
-        Serial.print((char)datasended);
+        UDR2 = *(ptrTxD++);
         do {
           TestFlags16bits = (drapeau_UART & (1<<flag_ISR_TxD2));
-        } while (TestFlags16bits == 0);
+        } while(TestFlags16bits == 0);
         drapeau_UART &= ~(1<<flag_ISR_TxD2);
-      } while(*ptr_TxD != '\0');
+      } while(*ptrTxD != '\0');
       break;
     case UART3:
       do {
-        datasended = *(ptr_TxD++);
-        UDR3 = datasended;
-        Serial.print((char)datasended);
+        UDR3 = *(ptrTxD++);
         do {
           TestFlags16bits = (drapeau_UART & (1<<flag_ISR_TxD3));
-        } while (TestFlags16bits == 0);
+        } while(TestFlags16bits == 0);
         drapeau_UART &= ~(1<<flag_ISR_TxD3);
-      } while(*ptr_TxD != '\0');
+      } while(*ptrTxD != '\0');
       break;
   }
-  Serial.println();
 }
 /************************************************************************************************************/
 /* This function is used just after sending a control command. The life duration of this function has to be */
@@ -1042,7 +1053,7 @@ void Send_Frame(UART_Port_t num_UART, uint8_t *ptr_TxD) {
 /************************************************************************************************************/
 uint8_t Polling_RS232(UART_Port_t NumUart, uint16_t NbrCWTimex5ms) {
   cmpt_5ms = 0;                         // This variable will be incremented by timer1 interrupt every 5 ms
-  cmpt_100us = 0;                       //
+  cmpt_100us = 0;
   uint8_t k;
   Indice_carac = 0;                     // incremented index which defines the numeber of characters received
   bool OneAsciiReceived = false;        // At the calling of this function
@@ -1091,8 +1102,43 @@ uint8_t Polling_RS232(UART_Port_t NumUart, uint16_t NbrCWTimex5ms) {
   Serial.println();
   return Indice_carac;    // pour prévoir le cas d'un tableau avec le seul caractère de fin de tableau pour confirmer qu'aucun octet n'a été transmis
 }
-
-
+/************************************************************************************************************/
+/* This receive function is stopped by fetchning of a Carriage Return character. The array is terminated by */
+/* a NULL char.*/
+/************************************************************************************************************/
+void PollingUART_CRend(UART_Port_t NumUart) {
+  uint8_t *ptrRxD;
+  ptrRxD = &BuffIn[0];
+  
+  switch(NumUart) {
+    case UART1:
+      do {
+        while ((drapeau_UART & (1 << flag_ISR_RxD1)) == 0);
+        *(ptrRxD++) = ReceivedChar;
+        drapeau_UART &= ~(1<<flag_ISR_RxD1);
+      } while(ReceivedChar != CR);
+      break;
+    case UART2:
+      do {
+        TestFlags16bits = (drapeau_UART & (1 << flag_ISR_RxD2));
+        if (TestFlags16bits != 0) {
+          *ptrRxD = UDR2;
+          drapeau_UART &= ~(1<<flag_ISR_RxD2);
+        }
+      } while(*(ptrRxD++) != CR);           
+      break;
+    case UART3:
+      do {
+        TestFlags16bits = (drapeau_UART & (1 << flag_ISR_RxD3));
+        if (TestFlags16bits != 0) {
+          *ptrRxD = UDR3;
+          drapeau_UART &= ~(1<<flag_ISR_RxD3);
+        }
+      } while(*(ptrRxD++) != CR);         
+      break;
+  }
+  *ptrRxD = '\0';
+}
 
 
 

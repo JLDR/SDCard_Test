@@ -102,6 +102,7 @@ ISR(USART1_UDRE_vect) {
 /********************************************************************************************/
 #ifdef MEGA2560Board
 ISR(USART2_RX_vect) {
+  ReceivedChar = UDR2;
   drapeau_UART |= (1<<flag_ISR_RxD2);
 }
 #endif
@@ -132,6 +133,7 @@ ISR(USART2_UDRE_vect) {
 /********************************************************************************************/
 #ifdef MEGA2560Board
 ISR(USART3_RX_vect) {
+  ReceivedChar = UDR3;
   drapeau_UART |= (1<<flag_ISR_RxD3);
 }
 #endif
@@ -373,10 +375,10 @@ void uarthelp() {
   Serial.println(F("UARTs configurables : UART1, UART2 & UART3"));
   Serial.println(F("Commande : 'uart'<d_d_dAd> (uart1_6_8N1)"));
   Serial.println(F("Commande ASCII comprenant : numéro d'UART, taux de communication, nbr de bits par caractère, parité et nbr de bits de stop\n"));
-  Serial.println(F("\t- Numéro de l'UART choisi :\t1 -> UART1,\t2 -> UART2,\t3 -> UART3\n"));
-  Serial.println(F("\t- Baud Rate :\t0 -> 115200,\t1 -> 57600,\t2 -> 38400,\t3 -> 28800,\t4 -> 19200,\n\t\t\t5 -> 14400,\t6 -> 9600,\t7 -> 4800,\t8 -> 2400,\t9 -> 1200\n"));
-  Serial.println(F("\t- Nombre de bits par caractère :\t6 -> 6 bits,\t7 -> 7 bits,\t8 -> 8 bits,\t9 -> 9 bits\n"));
-  Serial.println(F("\t- Parité :\tE (Even) -> paire,\tO (Odd) -> impaire,\tN (None) -> aucune\n"));
+  Serial.println(F("\t- Numéro de l'UART choisi :\t1 -> UART1,\t2 -> UART2,\t3 -> UART3"));
+  Serial.println(F("\t- Baud Rate :\t0 -> 115200,\t1 -> 57600,\t2 -> 38400,\t3 -> 28800,\t4 -> 19200,\n\t\t\t5 -> 14400,\t6 -> 9600,\t7 -> 4800,\t8 -> 2400,\t9 -> 1200"));
+  Serial.println(F("\t- Nombre de bits par caractère :\t6 -> 6 bits,\t7 -> 7 bits,\t8 -> 8 bits,\t9 -> 9 bits"));
+  Serial.println(F("\t- Parité :\tE (Even) -> paire,\tO (Odd) -> impaire,\tN (None) -> aucune"));
   Serial.println(F("\t- Stop bits :\t1 -> One stop bit,\t2 -> Two stop bits"));
   separateurComUART(110, '-');
   Serial.println(F("To check features of each UART : 'readuart_'<d>"));
@@ -397,7 +399,7 @@ void uarthelp() {
   Serial.println(F("Control command : 'rxtxtied_'<d>"));
   separateurComUART(110, '_');
   Serial.println(F("Polling the I2C bus"));
-  Serial.println(F("- To read I2C addresses for all devices connected : 'scan' ou 'i2c'"));
+  Serial.println(F("\t- To read I2C addresses for all devices connected : 'scan' ou 'i2c'"));
   separateurComUART(110, '=');
 }
 /****************************************************************************************************/
@@ -979,17 +981,15 @@ void ControlCdeVer(String Cde_lue) {
   BuffOut[k++] = CR;
   BuffOut[k++] = '\0';                      // here we get: VER 1<CR>'\0'
   ptr = &BuffOut[0];
-  Serial.print(F("\n[uart] control command sended: "));   // no any interaction with reception so have to be made before transmission
+  Serial.print(F("\n[uart] control command sent: "));   // no any interaction with reception so have to be made before transmission
   do {
     Serial.print((char)*(ptr++));
   } while(*ptr != '\0');
   Serial.print((char)LF);                   // Normally we get a new line
   Send_Frame(UART1);
   UCSR1B |= (1<<RXCIE1);
-//  TestFlags16bits = (drapeau_UART & (1 << flag_ISR_RxD1));
-//  if (TestFlags16bits != 0) drapeau_UART &= ~(1<<flag_ISR_RxD1);
-  PollingUART_CRend(UART1);
-  //Polling_RS232(UART1, 200);                 // life duration of 50 ms with no recieved chars
+  PollingUART_CRend(UART1);               // predictable events and blocking function
+  //ScratchComUART_8bits = Polling_RS232(UART1, 200);                // non blocking function and life duration of 200 x 5 ms with no recieved chars
     
   ptr = &BuffIn[0];
   Serial.print(F("\n[uart] answer received: "));
@@ -998,6 +998,7 @@ void ControlCdeVer(String Cde_lue) {
   } while(*ptr != '\0');
   UCSR1B &= ~(1<<RXCIE1);
   UCSR1B &= ~(1<<TXCIE1);
+  //Serial.print(F("\n[uart] characters number: ")); Serial.print(ScratchComUART_8bits, DEC);
 }
 /******************************************************************************************************************/
 /* Function to transmit a control command which have been loaded in BuffOut array.                                */
@@ -1045,66 +1046,77 @@ void Send_Frame(UART_Port_t num_UART) {
 /* which is a multiple of 100 µs is extract from the array named DelayBetween2Chars. The name of this       */
 /* variable is Delay2Chars and is automaticaly defined when we call functions Init_UART() and ConfigUART(). */
 /* This function return the number of received characters. If a character is received, the delay between    */
-/* two characters is reset and the function is terminated when a complete delay has been reached. When this */
-/* function is called, the complete life duration depends of NbrCWTimex5ms multiply by an integer.          */
-/* ACCEPTED ELAPSE times after the reception of one character according to the different baud rates:        */
+/* two characters is reset and the function will stop whith the last character of the frame as long as the  */
+/* delay between two charcacters do not reach the value defined by DelayBetween2Chars. So when this         */
+/* function is called, the complete life duration depends of NbrCWTimex5ms multiply by an integer. Between  */
+/* two characters, the elapse times according to the different baud rates are:                              */
 /* 115200 -> 100 µs, 57600 -> 200 µs, 38400 -> 200 µs, 28800 -> 300 µs, 19200 -> 300 µs, 14400 -> 400 µs    */
 /* 9600 -> 400 µs, 4800 -> 500 µs, 2400 -> 500 µs, 1200 -> 600 µs                                           */
+/* Normaly this function allows polling frames sent by a device without knowing the response delay and the  */
+/* end character of the frame. So this function is adapted to an unpredictable answer from an other device. */
 /************************************************************************************************************/
-uint8_t Polling_RS232(UART_Port_t NumUart, uint16_t NbrCWTimex5ms) {
+uint8_t Polling_RS232(UART_Port_t NumUart, uint16_t NbrCWTimex5ms) {  // maximum delay if no byte have been received = NbrCWTimex5ms x 5 ms
   cmpt_5ms = 0;                         // This variable will be incremented by timer1 interrupt every 5 ms
-  cmpt_100us = 0;
-  uint8_t k;
-  Indice_carac = 0;                     // incremented index which defines the numeber of characters received
+  cmpt_100us = 0;                       // defines the time step which is multiply by a coefficient issued from baudrate
+  Indice_carac = 0;                     // incremented index which defines the number of characters received
   bool OneAsciiReceived = false;        // At the calling of this function
-  uint8_t *ptr;
-  do {
-    switch(NumUart) {
-      case UART1:
-        TestFlags16bits = (drapeau_UART & (1 << flag_ISR_RxD1));
-        if (TestFlags16bits != 0) {
-          OneAsciiReceived = true;      // as soon as the first character has been received, this flag is modified
-          BuffIn[Indice_carac++] = UDR1;
+  uint8_t *ptrRxD;
+  ptrRxD = &BuffIn[0];
+                                   
+  switch(NumUart) {
+    case UART1:
+      do {
+        TestFlags16bits = (drapeau_UART & (1<<flag_ISR_RxD1));
+        if (TestFlags16bits != 0) {     // non blocking
+          *(ptrRxD++) = ReceivedChar;
           drapeau_UART &= ~(1<<flag_ISR_RxD1);
           cmpt_100us = 0;               // to reset delay between two ASCII characters received
+          cmpt_5ms = 0;
+          OneAsciiReceived = true;      // as soon as the first character has been received, this flag is modified
+          Indice_carac++;
+        } else {
+          if (OneAsciiReceived == false) cmpt_100us = 0;
         }
-        break;
-      case UART2:
-        TestFlags16bits = (drapeau_UART & (1 << flag_ISR_RxD2));
-        if (TestFlags16bits != 0) {
-          OneAsciiReceived = true;
-          BuffIn[Indice_carac++] = UDR2;
+      } while(cmpt_5ms < NbrCWTimex5ms || cmpt_100us < Delay2Chars);  // for a 19200 baudrate, Delay2Chars = 3 that involves 300 µs time delay
+      break;
+    case UART2:
+      do {
+        TestFlags16bits = (drapeau_UART & (1<<flag_ISR_RxD2));
+        if (TestFlags16bits != 0) {     // non blocking
+          *(ptrRxD++) = ReceivedChar;
           drapeau_UART &= ~(1<<flag_ISR_RxD2);
-          cmpt_100us = 0;
-        }           
-        break;
-      case UART3:
-        TestFlags16bits = (drapeau_UART & (1 << flag_ISR_RxD3));
-        if (TestFlags16bits != 0) {
-          OneAsciiReceived = true;
-          BuffIn[Indice_carac++] = UDR3;
+          cmpt_100us = 0;               // to reset delay between two ASCII characters received
+          cmpt_5ms = 0;
+          OneAsciiReceived = true;      // as soon as the first character has been received, this flag is modified
+          Indice_carac++;
+        } else {
+          if (OneAsciiReceived == false) cmpt_100us = 0;
+        }
+      } while(cmpt_5ms < NbrCWTimex5ms || cmpt_100us < Delay2Chars);  // for a 19200 baudrate, Delay2Chars = 3 that involves 300 µs time delay
+      break;
+    case UART3:
+      do {
+        TestFlags16bits = (drapeau_UART & (1<<flag_ISR_RxD3));
+        if (TestFlags16bits != 0) {     // non blocking
+          *(ptrRxD++) = ReceivedChar;
           drapeau_UART &= ~(1<<flag_ISR_RxD3);
-          cmpt_100us = 0;
-        }           
-        break;
-    }
-    // with at least one character received, we check the delay has elapsed 
-    if (OneAsciiReceived == true && cmpt_100us >= Delay2Chars) break; // avec au moins un caractère reçu on vérifie que le délai écoulé soit inférieur à une limite acceptable
-  } while (cmpt_5ms < NbrCWTimex5ms); // contention window which can be shorted if the delay between two characters is elapsed (Delay2Chars x 100 µs)
-
-  BuffIn[Indice_carac] = '\0';
-  ptr = &BuffIn[0];
-  Serial.print(F("\n[uart] answer received: "));
-  //for (k = 0; k < Indice_carac; k++) Serial.print((char)BuffIn[k]);
-  do {
-    Serial.print((char)(*(ptr++)));
-  } while(*ptr != '\0');
-  Serial.println();
-  return Indice_carac;    // pour prévoir le cas d'un tableau avec le seul caractère de fin de tableau pour confirmer qu'aucun octet n'a été transmis
+          cmpt_100us = 0;               // to reset delay between two ASCII characters received
+          cmpt_5ms = 0;
+          OneAsciiReceived = true;      // as soon as the first character has been received, this flag is modified
+          Indice_carac++;
+        } else {
+          if (OneAsciiReceived == false) cmpt_100us = 0;
+        }
+      } while(cmpt_5ms < NbrCWTimex5ms || cmpt_100us < Delay2Chars);  // for a 19200 baudrate, Delay2Chars = 3 that involves 300 µs time delay
+      break;
+  }
+  *ptrRxD = '\0';
+  return Indice_carac;    // to inform of the array content which contains only one character
 }
 /************************************************************************************************************/
-/* This receive function is stopped by fetchning of a Carriage Return character. The array is terminated by */
-/* a NULL char.*/
+/* This receive function is stopped by fetchning a Carriage Return character sent by oxymeter. The array is */
+/* terminated by a NULL char ('\0'). This function is absolutely predictable.                               */
+/* This function is blocking and needs to receive at least one character to exit from it.                   */
 /************************************************************************************************************/
 void PollingUART_CRend(UART_Port_t NumUart) {
   uint8_t *ptrRxD;
@@ -1113,28 +1125,24 @@ void PollingUART_CRend(UART_Port_t NumUart) {
   switch(NumUart) {
     case UART1:
       do {
-        while ((drapeau_UART & (1 << flag_ISR_RxD1)) == 0);
+        while ((drapeau_UART & (1 << flag_ISR_RxD1)) == 0);     // blocking
         *(ptrRxD++) = ReceivedChar;
         drapeau_UART &= ~(1<<flag_ISR_RxD1);
       } while(ReceivedChar != CR);
       break;
     case UART2:
       do {
-        TestFlags16bits = (drapeau_UART & (1 << flag_ISR_RxD2));
-        if (TestFlags16bits != 0) {
-          *ptrRxD = UDR2;
-          drapeau_UART &= ~(1<<flag_ISR_RxD2);
-        }
-      } while(*(ptrRxD++) != CR);           
+        while ((drapeau_UART & (1 << flag_ISR_RxD2)) == 0);
+        *(ptrRxD++) = ReceivedChar;
+        drapeau_UART &= ~(1<<flag_ISR_RxD2);
+      } while(ReceivedChar != CR);
       break;
     case UART3:
       do {
-        TestFlags16bits = (drapeau_UART & (1 << flag_ISR_RxD3));
-        if (TestFlags16bits != 0) {
-          *ptrRxD = UDR3;
-          drapeau_UART &= ~(1<<flag_ISR_RxD3);
-        }
-      } while(*(ptrRxD++) != CR);         
+        while ((drapeau_UART & (1 << flag_ISR_RxD3)) == 0);
+        *(ptrRxD++) = ReceivedChar;
+        drapeau_UART &= ~(1<<flag_ISR_RxD3);
+      } while(ReceivedChar != CR);
       break;
   }
   *ptrRxD = '\0';
